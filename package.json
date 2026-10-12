@@ -1,0 +1,11 @@
+{
+  "name": "kingdom-arrow-defense",
+  "version": "0.1.0",
+  "description": "王国箭塔防线 - 塔防合成生存游戏",
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve . -l 3000",
+    "build:android": "npx cap copy android && npx cap sync android",
+    "open:android": "npx cap open android"
+  }
+}
