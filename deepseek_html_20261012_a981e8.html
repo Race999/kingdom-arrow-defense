@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>王国箭塔防线</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw; height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        #game-canvas {
+            display: block;
+            position: absolute;
+            top: 0; left: 0;
+        }
+        /* UI 覆盖层 */
+        .ui-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .ui-layer.interactive { pointer-events: auto; }
+        .menu-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(10, 10, 30, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        .menu-overlay.hidden { display: none; }
+        .menu-title {
+            font-size: clamp(28px, 8vw, 56px);
+            font-weight: 900;
+            color: #ffd700;
+            text-shadow: 0 4px 12px rgba(255, 215, 0, 0.5);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .menu-subtitle {
+            font-size: clamp(14px, 3.5vw, 18px);
+            color: #aaa;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        .btn-primary {
+            padding: 16px 48px;
+            font-size: clamp(18px, 4.5vw, 24px);
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #ff6b35, #ff9f1c);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+            transition: transform 0.15s, box-shadow 0.15s;
+            pointer-events: auto;
+        }
+        .btn-primary:active { transform: scale(0.95); }
+        .btn-secondary {
+            padding: 12px 32px;
+            font-size: clamp(14px, 3.5vw, 18px);
+            font-weight: 600;
+            color: #ccc;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 12px;
+            pointer-events: auto;
+        }
+        .btn-secondary:active { transform: scale(0.95); }
+        .instructions {
+            max-width: 360px;
+            color: #999;
+            font-size: clamp(12px, 3vw, 15px);
+            line-height: 1.8;
+            text-align: center;
+            margin-bottom: 28px;
+            padding: 0 20px;
+        }
+        .instructions strong { color: #ffd700; }
+        .loading-text {
+            color: #ffd700;
+            font-size: clamp(16px, 4vw, 22px);
+            font-weight: 700;
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- 加载界面 -->
+        <div id="loading-screen" class="menu-overlay">
+            <div class="loading-text">加载中...</div>
+        </div>
+
+        <!-- 开始菜单 -->
+        <div id="start-menu" class="menu-overlay hidden">
+            <div class="menu-title">🏰 王国箭塔防线</div>
+            <div class="menu-subtitle">塔防 · 合成 · 生存</div>
+            <div class="instructions">
+                你有 <strong>180 秒</strong> 准备时间<br>
+                建造 <strong>箭塔</strong> 抵御敌人进攻<br>
+                <strong>拖动合并</strong> 相同等级箭塔升级<br>
+                击败敌人获取金币<br>
+                守住城堡，抵挡所有波次！
+            </div>
+            <button class="btn-primary" id="btn-start">开始游戏</button>
+        </div>
+
+        <!-- 暂停菜单 -->
+        <div id="pause-menu" class="menu-overlay hidden">
+            <div class="menu-title">⏸ 已暂停</div>
+            <button class="btn-primary" id="btn-resume">继续游戏</button>
+            <button class="btn-secondary" id="btn-restart-from-pause">重新开始</button>
+        </div>
+
+        <!-- 胜利界面 -->
+        <div id="victory-screen" class="menu-overlay hidden">
+            <div class="menu-title" style="color:#4ade80;">🎉 胜利！</div>
+            <div class="menu-subtitle">你成功守住了王国！</div>
+            <div class="instructions" id="victory-stats"></div>
+            <button class="btn-primary" id="btn-restart-victory">再来一局</button>
+        </div>
+
+        <!-- 失败界面 -->
+        <div id="defeat-screen" class="menu-overlay hidden">
+            <div class="menu-title" style="color:#ef4444;">💀 城堡陷落</div>
+            <div class="menu-subtitle">敌人攻破了你的防线...</div>
+            <div class="instructions" id="defeat-stats"></div>
+            <button class="btn-primary" id="btn-restart-defeat">重新开始</button>
+        </div>
+
+        <!-- 游戏内 HUD 容器 -->
+        <div id="hud-container" class="ui-layer"></div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>
